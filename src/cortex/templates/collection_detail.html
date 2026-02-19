@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}{{ collection.name }} — Cortex{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <a href="/collections" style="color: var(--text-muted); text-decoration: none; font-size: 0.875rem;">
+    &larr; Back to collections
+  </a>
+</div>
+
+<div class="mb-6">
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="page-title">{{ collection.name }}</h1>
+      {% if collection.description %}
+      <p class="page-subtitle">{{ collection.description }}</p>
+      {% endif %}
+    </div>
+    <div class="flex gap-2">
+      <button class="btn btn-ghost" onclick="document.getElementById('add-note-form').style.display = document.getElementById('add-note-form').style.display === 'none' ? 'block' : 'none'">
+        Add Note
+      </button>
+      <button class="btn btn-danger"
+              onclick="if(confirm('Delete this collection? Notes will not be deleted.')) deleteCollection({{ collection.id }})">
+        Delete
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Note Form (hidden) -->
+<div id="add-note-form" style="display: none; margin-bottom: 24px;">
+  <div class="note-card">
+    <div style="margin-bottom: 8px; font-size: 0.8rem; color: var(--text-muted);">Paste a note ID to add it to this collection</div>
+    <form onsubmit="addNoteToCollection(event, {{ collection.id }})">
+      <div class="flex gap-2">
+        <input type="text" name="note_id" placeholder="Note ID (e.g., a1b2c3d4...)"
+               style="flex: 1; background: var(--bg-code); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; outline: none;">
+        <button type="submit" class="btn btn-primary">Add</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Notes in Collection -->
+<div class="flex flex-col gap-3">
+  {% for note in notes %}
+  <div class="note-card fade-in">
+    <div class="note-meta">
+      <span class="note-time">{{ note.created_at[:10] }}</span>
+      <span class="note-id">{{ note.id[:8] }}</span>
+      {% if note.category %}
+      <span class="category-badge {{ note.category }}">{{ note.category }}</span>
+      {% endif %}
+      <button class="btn btn-ghost" style="padding: 2px 8px; font-size: 0.7rem; margin-left: auto;"
+              onclick="if(confirm('Remove from collection?')) removeFromCollection({{ collection.id }}, '{{ note.id }}')">
+        remove
+      </button>
+    </div>
+    <a href="/notes/{{ note.id }}" style="text-decoration: none; color: inherit;">
+      <div class="note-text truncated">{{ note.raw_text }}</div>
+    </a>
+    {% if note.summary %}
+    <div style="margin-top: 6px; font-size: 0.8rem; color: var(--text-muted); font-style: italic;">
+      {{ note.summary }}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  {% if not notes %}
+  <div style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
+    <p>No notes in this collection yet.</p>
+    <p style="font-size: 0.85rem; margin-top: 4px;">Use the "Add Note" button above to add notes by ID.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  async function addNoteToCollection(e, collectionId) {
+    e.preventDefault();
+    const noteId = e.target.querySelector('[name="note_id"]').value.trim();
+    if (!noteId) return;
+
+    const resp = await fetch('/api/collections/' + collectionId + '/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note_id: noteId })
+    });
+
+    if (resp.ok) {
+      window.location.reload();
+    } else {
+      alert('Failed to add note. Check the note ID.');
+    }
+  }
+
+  async function removeFromCollection(collectionId, noteId) {
+    const resp = await fetch('/api/collections/' + collectionId + '/notes/' + noteId, {
+      method: 'DELETE'
+    });
+    if (resp.ok) window.location.reload();
+  }
+
+  async function deleteCollection(collectionId) {
+    const resp = await fetch('/api/collections/' + collectionId, { method: 'DELETE' });
+    if (resp.ok) window.location.href = '/collections';
+  }
+</script>
+{% endblock %}

@@ -1,6 +1,7 @@
 """Ollama HTTP client wrapper for local LLM interactions."""
 
-from typing import AsyncIterator
+import json
+from collections.abc import AsyncIterator
 
 import httpx
 
@@ -85,8 +86,6 @@ class OllamaClient:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if line:
-                        import json
-
                         data = json.loads(line)
                         token = data.get("response", "")
                         if token:

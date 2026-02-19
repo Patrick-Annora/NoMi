@@ -8,10 +8,27 @@
       <h1 class="page-title">Feed</h1>
       <p class="page-subtitle">Your stream of consciousness</p>
     </div>
-    <a href="/compose" class="btn btn-primary">
+    <button class="btn btn-primary" id="new-note-btn" onclick="toggleInlineCompose()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
       New Note
-    </a>
+    </button>
+  </div>
+
+  <!-- Inline Compose -->
+  <div id="inline-compose" style="display: none; margin-bottom: 20px;">
+    <div class="note-card" style="border-color: rgba(201, 168, 76, 0.3);">
+      <textarea id="inline-note-text" placeholder="What's on your mind?"
+                style="width: 100%; min-height: 80px; background: transparent; border: none; color: var(--text-primary); font-size: 1rem; line-height: 1.65; resize: none; outline: none; font-family: 'Inter', system-ui, sans-serif;"></textarea>
+      <div class="flex justify-between items-center" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);">
+        <span id="inline-word-count" style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text-muted);">0 words</span>
+        <div class="flex gap-2">
+          <button type="button" class="btn btn-ghost" onclick="toggleInlineCompose()" style="font-size: 0.8rem;">Cancel</button>
+          <button type="button" class="btn btn-primary" id="inline-save-btn" onclick="submitInlineNote()" style="font-size: 0.8rem;">
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Quick Filters -->
@@ -74,7 +91,7 @@
     </svg>
     <p style="font-size: 1.125rem; margin-bottom: 8px;">No notes yet</p>
     <p style="font-size: 0.875rem;">Capture your first thought with <code style="background: var(--bg-code); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">cortex add "your thought"</code></p>
-    <p style="font-size: 0.875rem; margin-top: 4px;">or <a href="/compose" style="color: var(--accent-gold);">compose one here</a></p>
+    <p style="font-size: 0.875rem; margin-top: 4px;">or click <strong style="color: var(--accent-gold);">New Note</strong> above</p>
   </div>
   {% endif %}
 </div>
@@ -87,4 +104,93 @@
      hx-target="this">
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const inlineCompose = document.getElementById('inline-compose');
+  const inlineText = document.getElementById('inline-note-text');
+  const inlineWordCount = document.getElementById('inline-word-count');
+
+  function toggleInlineCompose() {
+    const isHidden = inlineCompose.style.display === 'none';
+    inlineCompose.style.display = isHidden ? 'block' : 'none';
+    if (isHidden) {
+      inlineText.focus();
+      inlineText.value = '';
+      inlineWordCount.textContent = '0 words';
+    }
+  }
+
+  inlineText.addEventListener('input', () => {
+    const words = inlineText.value.trim().split(/\s+/).filter(w => w.length > 0).length;
+    inlineWordCount.textContent = words + ' word' + (words !== 1 ? 's' : '');
+    inlineText.style.height = 'auto';
+    inlineText.style.height = Math.max(80, inlineText.scrollHeight) + 'px';
+  });
+
+  inlineText.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      submitInlineNote();
+    }
+  });
+
+  async function submitInlineNote() {
+    const text = inlineText.value.trim();
+    if (!text) return;
+
+    const btn = document.getElementById('inline-save-btn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+      const resp = await fetch('/api/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw_text: text, source: 'web' })
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        // Build and insert new note card at the top of the feed
+        const feed = document.getElementById('feed');
+        const card = document.createElement('div');
+        card.className = 'note-card fade-in';
+        card.innerHTML = `
+          <div class="note-meta">
+            <span class="note-time">just now</span>
+            <span class="note-id">${(data.id || '').slice(0, 8)}</span>
+            <span class="source-icon">web</span>
+          </div>
+          <a href="/notes/${data.id}" style="text-decoration: none; color: inherit;">
+            <div class="note-text">${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+          </a>
+        `;
+
+        // Insert after the first date separator, or at the beginning
+        const firstSep = feed.querySelector('.date-sep');
+        if (firstSep) {
+          firstSep.after(card);
+        } else {
+          feed.prepend(card);
+          // Add a Today separator
+          const sep = document.createElement('div');
+          sep.className = 'date-sep';
+          sep.textContent = 'Today';
+          feed.prepend(sep);
+        }
+
+        inlineText.value = '';
+        inlineWordCount.textContent = '0 words';
+        toggleInlineCompose();
+      }
+    } catch (err) {
+      alert('Error saving note');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save';
+    }
+  }
+</script>
 {% endblock %}

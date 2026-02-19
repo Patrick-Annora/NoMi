@@ -97,6 +97,18 @@ async def add_note_to_collection(
     return {"status": "added"}
 
 
+@router.delete("/{collection_id}")
+async def delete_collection(collection_id: int, request: Request) -> dict[str, str]:
+    """Delete a collection (notes are not deleted)."""
+    conn = request.state.db
+    await conn.execute("DELETE FROM note_collections WHERE collection_id = ?", (collection_id,))
+    result = await conn.execute("DELETE FROM collections WHERE id = ?", (collection_id,))
+    await conn.commit()
+    if (result.rowcount or 0) == 0:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    return {"status": "deleted"}
+
+
 @router.delete("/{collection_id}/notes/{note_id}")
 async def remove_note_from_collection(
     collection_id: int,

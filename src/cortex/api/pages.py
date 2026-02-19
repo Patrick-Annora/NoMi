@@ -1,6 +1,7 @@
 """Jinja2 page routes — server-rendered HTML pages."""
 
 import json
+from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -29,8 +30,6 @@ def _relative_time(dt_str: str) -> str:
     Returns:
         A human-readable relative time (e.g., '2 hours ago').
     """
-    from datetime import datetime
-
     try:
         dt = datetime.fromisoformat(dt_str)
         now = datetime.now()
@@ -55,6 +54,29 @@ def _relative_time(dt_str: str) -> str:
         return dt_str
 
 
+def _date_label(created_str: str) -> str:
+    """Convert a date string to a human-readable group label.
+
+    Args:
+        created_str: An ISO date string (YYYY-MM-DD prefix).
+
+    Returns:
+        A label like 'Today', 'Yesterday', or 'Feb 15'.
+    """
+    created = created_str[:10]
+    today = datetime.now().strftime("%Y-%m-%d")
+    yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    if created == today:
+        return "Today"
+    if created == yesterday_str:
+        return "Yesterday"
+    try:
+        return datetime.fromisoformat(created).strftime("%b %d")
+    except (ValueError, TypeError):
+        return created
+
+
 @router.get("/", response_class=HTMLResponse)
 async def feed_page(
     request: Request,
@@ -69,21 +91,7 @@ async def feed_page(
     grouped: dict[str, list[dict[str, Any]]] = {}
     for note in notes:
         note["relative_time"] = _relative_time(note.get("created_at", ""))
-        created = note.get("created_at", "")[:10]
-        from datetime import datetime
-
-        today = datetime.now().strftime("%Y-%m-%d")
-        yesterday_str = (datetime.now().replace(hour=0) - __import__("datetime").timedelta(days=1)).strftime("%Y-%m-%d")
-
-        if created == today:
-            label = "Today"
-        elif created == yesterday_str:
-            label = "Yesterday"
-        else:
-            try:
-                label = datetime.fromisoformat(created).strftime("%b %d")
-            except (ValueError, TypeError):
-                label = created
+        label = _date_label(note.get("created_at", ""))
         grouped.setdefault(label, []).append(note)
 
     categories = await conn.execute_fetchall(
@@ -155,6 +163,60 @@ async def compose_page(request: Request) -> HTMLResponse:
     """Render the compose page."""
     return templates.TemplateResponse("compose.html", {
         "request": request,
+    })
+
+
+@router.get("/collections", response_class=HTMLResponse)
+async def collections_page(request: Request) -> HTMLResponse:
+    """Render the collections list page."""
+    conn = request.state.db
+    rows = await conn.execute_fetchall(
+        """
+        SELECT c.*, COUNT(nc.note_id) as note_count
+        FROM collections c
+        LEFT JOIN note_collections nc ON c.id = nc.collection_id
+        GROUP BY c.id
+        ORDER BY c.name
+        """
+    )
+    collections = [dict(r) for r in rows]
+
+    return templates.TemplateResponse("collections.html", {
+        "request": request,
+        "collections": collections,
+    })
+
+
+@router.get("/collections/{collection_id}", response_class=HTMLResponse)
+async def collection_detail_page(collection_id: int, request: Request) -> HTMLResponse:
+    """Render a single collection's detail page."""
+    conn = request.state.db
+    rows = await conn.execute_fetchall(
+        "SELECT * FROM collections WHERE id = ?", (collection_id,)
+    )
+    if not rows:
+        return templates.TemplateResponse("404.html", {
+            "request": request,
+            "message": "Collection not found",
+        }, status_code=404)
+
+    collection = dict(rows[0])
+    note_rows = await conn.execute_fetchall(
+        """
+        SELECT n.id, n.raw_text, n.summary, n.category, n.created_at
+        FROM notes n
+        JOIN note_collections nc ON n.id = nc.note_id
+        WHERE nc.collection_id = ?
+        ORDER BY n.created_at DESC
+        """,
+        (collection_id,),
+    )
+    notes = [dict(r) for r in note_rows]
+
+    return templates.TemplateResponse("collection_detail.html", {
+        "request": request,
+        "collection": collection,
+        "notes": notes,
     })
 
 

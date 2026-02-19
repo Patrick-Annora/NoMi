@@ -534,6 +534,13 @@
           </svg>
           Tags
         </a>
+        <a href="/collections" class="{% if '/collections' in request.url.path %}active{% endif %}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="18" rx="2"></rect>
+            <line x1="8" y1="3" x2="8" y2="21"></line>
+          </svg>
+          Collections
+        </a>
         <a href="/stats" class="{% if request.url.path == '/stats' %}active{% endif %}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="20" x2="18" y2="10"></line>

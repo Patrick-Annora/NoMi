@@ -40,15 +40,37 @@
 
 <!-- Agent Chat Container (shown in agent mode) -->
 <div id="agent-container" style="display: none;" class="agent-container">
+  <div id="agent-thinking" style="display: none; color: var(--text-muted); font-size: 0.85rem;">
+    <span class="agent-spinner"></span> Searching notes and thinking...
+  </div>
   <div id="agent-response" class="agent-response"></div>
-  <div id="agent-meta" style="margin-top: 12px; font-size: 0.75rem; color: var(--text-muted);"></div>
+  <div id="agent-citations" style="margin-top: 16px; display: none;">
+    <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 8px;">Sources</div>
+    <div id="agent-citation-links" class="flex gap-2" style="flex-wrap: wrap;"></div>
+  </div>
+  <div id="agent-meta" style="margin-top: 12px; font-size: 0.7rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;"></div>
 </div>
 
 {% endblock %}
 
 {% block scripts %}
+<style>
+  .agent-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent-gold);
+    border-radius: 50%;
+    animation: spin 600ms linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
 <script>
   let currentMode = 'semantic';
+  let agentAbort = null;
 
   function setMode(el, mode) {
     currentMode = mode;
@@ -58,9 +80,11 @@
     document.querySelectorAll('.mode-toggle label').forEach(l => l.classList.remove('active'));
     el.classList.add('active');
 
-    // Show/hide agent container
-    document.getElementById('agent-container').style.display = mode === 'agent' ? 'block' : 'none';
-    document.getElementById('results').style.display = mode === 'agent' ? 'none' : 'block';
+    // Show/hide containers
+    const agentEl = document.getElementById('agent-container');
+    const resultsEl = document.getElementById('results');
+    agentEl.style.display = mode === 'agent' ? 'block' : 'none';
+    resultsEl.style.display = mode === 'agent' ? 'none' : 'block';
 
     // Re-trigger search if there's a query
     const input = document.getElementById('search-input');
@@ -73,7 +97,7 @@
     }
   }
 
-  // Agent search with SSE
+  // Agent search on Enter
   document.getElementById('search-input').addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && currentMode === 'agent' && this.value.trim()) {
       e.preventDefault();
@@ -82,55 +106,96 @@
   });
 
   function runAgentSearch(query) {
-    const responseEl = document.getElementById('agent-response');
-    const metaEl = document.getElementById('agent-meta');
-    responseEl.textContent = '';
-    metaEl.textContent = 'Thinking...';
+    // Abort any previous request
+    if (agentAbort) agentAbort.abort();
+    agentAbort = new AbortController();
 
-    const container = document.getElementById('agent-container');
-    container.style.display = 'block';
+    const responseEl = document.getElementById('agent-response');
+    const thinkingEl = document.getElementById('agent-thinking');
+    const citationsEl = document.getElementById('agent-citations');
+    const citationLinksEl = document.getElementById('agent-citation-links');
+    const metaEl = document.getElementById('agent-meta');
+
+    // Reset UI
+    responseEl.textContent = '';
+    metaEl.textContent = '';
+    citationLinksEl.innerHTML = '';
+    citationsEl.style.display = 'none';
+    thinkingEl.style.display = 'block';
+
+    document.getElementById('agent-container').style.display = 'block';
     document.getElementById('results').style.display = 'none';
 
     fetch('/api/search/agent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: query, model: 'auto' })
+      body: JSON.stringify({ query: query, model: 'auto' }),
+      signal: agentAbort.signal
     }).then(response => {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let firstToken = true;
+
+      function processLines(text) {
+        const lines = text.split('\n');
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue;
+          const raw = line.slice(5).trim();
+          if (!raw || raw === '[DONE]') continue;
+          try {
+            const data = JSON.parse(raw);
+
+            // Token event — stream text
+            if (data.text !== undefined) {
+              if (firstToken) {
+                thinkingEl.style.display = 'none';
+                firstToken = false;
+              }
+              responseEl.textContent += data.text;
+            }
+
+            // Citations event
+            if (data.note_ids) {
+              citationsEl.style.display = 'block';
+              citationLinksEl.innerHTML = data.note_ids.map(id =>
+                '<a href="/notes/' + id + '" class="agent-citation">[' + id.slice(0, 8) + ']</a>'
+              ).join(' ');
+            }
+
+            // Done event
+            if (data.model_used !== undefined) {
+              metaEl.textContent = data.model_used + ' · ' +
+                data.notes_searched + ' notes searched · ' +
+                data.notes_cited + ' cited';
+              thinkingEl.style.display = 'none';
+            }
+          } catch(e) { /* skip malformed lines */ }
+        }
+      }
 
       function read() {
         reader.read().then(({ done, value }) => {
-          if (done) return;
-          buffer += decoder.decode(value, { stream: true });
-
-          const lines = buffer.split('\n');
-          buffer = lines.pop();
-
-          for (const line of lines) {
-            if (line.startsWith('data:')) {
-              try {
-                const data = JSON.parse(line.slice(5).trim());
-                if (data.text) {
-                  responseEl.textContent += data.text;
-                }
-                if (data.note_ids) {
-                  const citations = data.note_ids.map(id =>
-                    `<a href="/notes/${id}" class="agent-citation">[${id.slice(0, 8)}]</a>`
-                  ).join(' ');
-                  metaEl.innerHTML = 'Sources: ' + citations;
-                }
-                if (data.model_used) {
-                  metaEl.innerHTML += ` | Model: ${data.model_used} | ${data.notes_searched} notes searched`;
-                }
-              } catch(e) {}
-            }
+          if (done) {
+            if (buffer) processLines(buffer);
+            thinkingEl.style.display = 'none';
+            return;
           }
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop() || '';
+          for (const part of parts) processLines(part);
           read();
+        }).catch(() => {
+          thinkingEl.style.display = 'none';
         });
       }
       read();
+    }).catch(err => {
+      if (err.name !== 'AbortError') {
+        thinkingEl.style.display = 'none';
+        responseEl.textContent = 'Error connecting to the agent. Is the server running?';
+      }
     });
   }
 </script>

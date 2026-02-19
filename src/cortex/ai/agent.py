@@ -1,9 +1,8 @@
 """Search agent — query understanding, retrieval, and synthesis."""
 
-import json
 import logging
-import struct
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 import aiosqlite
 
