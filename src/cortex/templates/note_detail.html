@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Note {{ note.id[:8] }} — Cortex{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <a href="/" style="color: var(--text-muted); text-decoration: none; font-size: 0.875rem;">
+    &larr; Back to feed
+  </a>
+</div>
+
+<div class="note-card" style="border: none; background: transparent; padding: 0;">
+  <div class="note-meta mb-2">
+    <span class="note-time" style="font-size: 0.8rem;">{{ note.relative_time }}</span>
+    <span class="note-id" style="font-size: 0.75rem;">{{ note.id }}</span>
+    {% if note.category %}
+    <span class="category-badge {{ note.category }}">{{ note.category }}</span>
+    {% endif %}
+    <span class="source-icon">{{ note.source }}</span>
+    {% if note.sentiment %}
+    <span style="font-size: 0.7rem; color: var(--text-muted);">{{ note.sentiment }}</span>
+    {% endif %}
+  </div>
+
+  <!-- Full note text -->
+  <div class="note-text" style="font-size: 1.125rem; line-height: 1.7; margin: 20px 0;">{{ note.raw_text }}</div>
+
+  <!-- Tags -->
+  {% if note.tags %}
+  <div class="note-footer mb-4">
+    {% for tag in note.tags %}
+    <a href="/?tag={{ tag.name if tag is mapping else tag }}" class="tag-pill">
+      {{ tag.name if tag is mapping else tag }}
+      {% if tag is mapping and tag.tag_group %}
+      <span style="opacity: 0.5; margin-left: 4px;">({{ tag.tag_group }})</span>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Metadata -->
+  {% if note.summary %}
+  <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; margin: 16px 0;">
+    <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">AI Summary</div>
+    <div style="color: var(--text-secondary); font-size: 0.95rem;">{{ note.summary }}</div>
+  </div>
+  {% endif %}
+
+  <div style="display: flex; gap: 16px; margin-top: 16px; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-muted);">
+    <span>{{ note.word_count }} words</span>
+    <span>{{ note.created_at }}</span>
+    {% if note.is_journal %}<span style="color: var(--accent-sage);">journal</span>{% endif %}
+  </div>
+
+  <hr class="divider">
+
+  <!-- Actions -->
+  <div class="flex gap-2">
+    <button class="btn btn-ghost"
+            onclick="document.getElementById('edit-form').style.display = document.getElementById('edit-form').style.display === 'none' ? 'block' : 'none'">
+      Edit
+    </button>
+    <button class="btn btn-danger"
+            hx-delete="/api/notes/{{ note.id }}"
+            hx-confirm="Delete this note permanently?"
+            hx-target="closest .content-col"
+            hx-swap="innerHTML"
+            hx-on::after-request="window.location.href='/'">
+      Delete
+    </button>
+  </div>
+
+  <!-- Inline Edit Form (hidden by default) -->
+  <div id="edit-form" style="display: none; margin-top: 16px;">
+    <form hx-patch="/api/notes/{{ note.id }}"
+          hx-headers='{"Content-Type": "application/json"}'
+          hx-on::before-request="event.detail.requestConfig.headers['Content-Type'] = 'application/json'; let fd = new FormData(event.target); event.detail.requestConfig.body = JSON.stringify({raw_text: fd.get('raw_text')})"
+          hx-on::after-request="window.location.reload()">
+      <textarea name="raw_text" class="compose-textarea" style="min-height: 150px;">{{ note.raw_text }}</textarea>
+      <div class="flex gap-2 mt-2">
+        <button type="submit" class="btn btn-primary">Save</button>
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('edit-form').style.display='none'">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Related Notes -->
+{% if related %}
+<hr class="divider">
+<h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 16px; color: var(--text-secondary);">Related Notes</h2>
+<div class="flex flex-col gap-3">
+  {% for r in related %}
+  <a href="/notes/{{ r.id }}" class="note-card" style="text-decoration: none;">
+    <div class="note-meta">
+      <span class="note-time">{{ r.created_at[:10] }}</span>
+      {% if r.category %}
+      <span class="category-badge {{ r.category }}">{{ r.category }}</span>
+      {% endif %}
+      {% if r.similarity is defined %}
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--accent-gold);">
+        {{ "%.0f"|format(r.similarity * 100) }}% match
+      </span>
+      {% endif %}
+    </div>
+    <div class="note-text truncated" style="font-size: 0.95rem;">
+      {{ r.raw_text[:200] }}{% if r.raw_text|length > 200 %}...{% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

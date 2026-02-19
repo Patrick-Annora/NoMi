@@ -1,0 +1,24 @@
+/* Cortex — Custom styles beyond base.html inline styles */
+/* This file is for any additional styles not covered in the base template */
+/* The primary styling is done inline in base.html for simplicity */
+
+/* Print styles */
+@media print {
+  .sidebar, .mobile-nav { display: none !important; }
+  .main-content { margin-left: 0 !important; }
+  .btn { display: none !important; }
+  body { background: white; color: black; }
+  .note-card { border-color: #ddd; }
+}
+
+/* Focus styles for accessibility */
+a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background: rgba(201, 168, 76, 0.3);
+  color: var(--text-primary);
+}

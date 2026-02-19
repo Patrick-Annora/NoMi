@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Compose — Cortex{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="page-title">Compose</h1>
+  <p class="page-subtitle">What's on your mind?</p>
+</div>
+
+<form id="compose-form" method="post">
+  <textarea id="note-text"
+            name="raw_text"
+            class="compose-textarea"
+            placeholder="Start typing... Markdown supported."
+            autofocus
+            style="min-height: 250px;"></textarea>
+
+  <div class="flex items-center justify-between mt-4">
+    <div class="flex items-center gap-3">
+      <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
+        <input type="checkbox" name="is_journal" id="is-journal"
+               style="accent-color: var(--accent-gold); width: 16px; height: 16px;">
+        Journal mode
+      </label>
+    </div>
+
+    <div class="flex gap-2">
+      <span id="word-count" style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-muted); padding: 8px;">
+        0 words
+      </span>
+      <button type="submit" class="btn btn-primary" id="save-btn">
+        Save Note
+      </button>
+    </div>
+  </div>
+</form>
+
+<!-- Success Message -->
+<div id="save-result" style="display: none; margin-top: 20px;"></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const textarea = document.getElementById('note-text');
+  const wordCount = document.getElementById('word-count');
+  const form = document.getElementById('compose-form');
+  const saveBtn = document.getElementById('save-btn');
+  const saveResult = document.getElementById('save-result');
+
+  // Word count
+  textarea.addEventListener('input', () => {
+    const words = textarea.value.trim().split(/\s+/).filter(w => w.length > 0).length;
+    wordCount.textContent = words + ' word' + (words !== 1 ? 's' : '');
+  });
+
+  // Auto-expand textarea
+  textarea.addEventListener('input', () => {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.max(250, textarea.scrollHeight) + 'px';
+  });
+
+  // Cmd+Enter to save
+  textarea.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      form.dispatchEvent(new Event('submit'));
+    }
+  });
+
+  // Form submission
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = textarea.value.trim();
+    if (!text) return;
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+
+    try {
+      const response = await fetch('/api/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          raw_text: text,
+          source: 'web',
+          is_journal: document.getElementById('is-journal').checked
+        })
+      });
+
+      const data = await response.json();
+
+      saveResult.style.display = 'block';
+      saveResult.innerHTML = `
+        <div class="note-card fade-in" style="border-color: var(--accent-sage);">
+          <div style="color: var(--accent-sage); font-size: 0.85rem; margin-bottom: 8px; font-weight: 500;">
+            Note saved
+          </div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;">
+            ${data.id ? data.id.slice(0, 8) : ''} &middot; ${data.word_count || 0} words
+          </div>
+          <p style="color: var(--text-secondary); font-size: 0.9rem;">Enrichment processing in background...</p>
+          <div class="flex gap-2 mt-4">
+            <a href="/notes/${data.id}" class="btn btn-ghost" style="font-size: 0.8rem;">View Note</a>
+            <button class="btn btn-ghost" style="font-size: 0.8rem;" onclick="resetForm()">New Note</button>
+          </div>
+        </div>
+      `;
+
+      textarea.value = '';
+      wordCount.textContent = '0 words';
+    } catch (err) {
+      saveResult.style.display = 'block';
+      saveResult.innerHTML = `<div style="color: var(--accent-red);">Error saving note. Please try again.</div>`;
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Note';
+    }
+  });
+
+  function resetForm() {
+    saveResult.style.display = 'none';
+    textarea.focus();
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% for note in notes %}
+<div class="note-card fade-in">
+  <div class="note-meta">
+    <span class="note-time">{{ note.relative_time or note.created_at }}</span>
+    <span class="note-id">{{ note.id[:8] }}</span>
+    {% if note.category %}
+    <span class="category-badge {{ note.category }}">{{ note.category }}</span>
+    {% endif %}
+    <span class="source-icon">{{ note.source }}</span>
+  </div>
+  <a href="/notes/{{ note.id }}" style="text-decoration: none; color: inherit;">
+    <div class="note-text truncated">{{ note.raw_text }}</div>
+  </a>
+  {% if note.tags %}
+  <div class="note-footer">
+    {% for tag in note.tags %}
+    <a href="/?tag={{ tag.name if tag is mapping else tag }}" class="tag-pill">
+      {{ tag.name if tag is mapping else tag }}
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% if next_page %}
+<div hx-get="/partials/notes?page={{ next_page }}{% if category %}&category={{ category }}{% endif %}{% if tag %}&tag={{ tag }}{% endif %}"
+     hx-trigger="revealed"
+     hx-swap="afterend"
+     hx-target="this">
+</div>
+{% endif %}

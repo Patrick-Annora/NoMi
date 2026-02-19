@@ -1,0 +1,12 @@
+<div class="tag-cloud">
+  {% for tag in tags %}
+  {% set size_class = "" %}
+  {% if tag.usage_count > 20 %}{% set size_class = "xl" %}
+  {% elif tag.usage_count > 10 %}{% set size_class = "large" %}
+  {% endif %}
+  <a href="/?tag={{ tag.name }}" class="tag-pill {{ size_class }}">
+    {{ tag.name }}
+    <span style="margin-left: 6px; opacity: 0.5;">{{ tag.usage_count }}</span>
+  </a>
+  {% endfor %}
+</div>

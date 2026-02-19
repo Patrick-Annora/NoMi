@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Stats — Cortex{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="page-title">Stats</h1>
+  <p class="page-subtitle">Your knowledge base at a glance</p>
+</div>
+
+<!-- Top Stats -->
+<div class="grid-4 mb-6">
+  <div class="stat-card">
+    <div class="stat-value">{{ stats.total_notes }}</div>
+    <div class="stat-label">Notes</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ "{:,}".format(stats.total_words) }}</div>
+    <div class="stat-label">Words</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ stats.total_tags }}</div>
+    <div class="stat-label">Tags</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ stats.db_size_mb }}</div>
+    <div class="stat-label">MB</div>
+  </div>
+</div>
+
+<!-- Category Distribution -->
+{% if stats.by_category %}
+<div class="note-card mb-6">
+  <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 16px; color: var(--text-secondary);">Categories</h3>
+  {% for cat in stats.by_category %}
+  <div class="flex items-center gap-3 mb-2">
+    <span class="category-badge {{ cat.category }}">{{ cat.category }}</span>
+    <div style="flex: 1; background: var(--bg-code); border-radius: 4px; height: 8px; overflow: hidden;">
+      {% set pct = (cat.count / stats.total_notes * 100) if stats.total_notes > 0 else 0 %}
+      <div style="background: var(--accent-gold); height: 100%; width: {{ pct }}%; border-radius: 4px; transition: width 500ms ease;"></div>
+    </div>
+    <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-muted); min-width: 30px; text-align: right;">
+      {{ cat.count }}
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Source Distribution -->
+{% if stats.by_source %}
+<div class="note-card mb-6">
+  <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 16px; color: var(--text-secondary);">Capture Sources</h3>
+  <div class="flex gap-4">
+    {% for src in stats.by_source %}
+    <div class="stat-card" style="flex: 1; text-align: center;">
+      <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-gold); font-family: 'JetBrains Mono', monospace;">
+        {{ src.count }}
+      </div>
+      <div class="stat-label">{{ src.source }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Top Tags -->
+{% if stats.top_tags %}
+<div class="note-card mb-6">
+  <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 16px; color: var(--text-secondary);">Top Tags (30 days)</h3>
+  <div class="tag-cloud">
+    {% for tag in stats.top_tags %}
+    <a href="/?tag={{ tag.name }}" class="tag-pill">
+      {{ tag.name }}
+      <span style="margin-left: 6px; opacity: 0.5;">{{ tag.recent_count }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Notes Per Day Chart -->
+{% if stats.notes_per_day %}
+<div class="note-card mb-6">
+  <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 16px; color: var(--text-secondary);">Notes Per Day (30 days)</h3>
+  <div style="display: flex; align-items: flex-end; gap: 3px; height: 120px; padding: 0 4px;">
+    {% set max_count = namespace(val=1) %}
+    {% for day in stats.notes_per_day %}
+      {% if day.count > max_count.val %}{% set max_count.val = day.count %}{% endif %}
+    {% endfor %}
+    {% for day in stats.notes_per_day %}
+    {% set height = (day.count / max_count.val * 100) if max_count.val > 0 else 0 %}
+    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;"
+         title="{{ day.day }}: {{ day.count }} notes">
+      <div style="width: 100%; background: var(--accent-gold); border-radius: 3px 3px 0 0; min-height: 3px; height: {{ height }}%; transition: height 500ms ease; max-width: 20px;"></div>
+    </div>
+    {% endfor %}
+  </div>
+  <div style="display: flex; justify-content: space-between; margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-muted);">
+    {% if stats.notes_per_day %}
+    <span>{{ stats.notes_per_day[0].day }}</span>
+    <span>{{ stats.notes_per_day[-1].day }}</span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Enrichment Status -->
+{% if stats.unenriched_count > 0 %}
+<div class="note-card" style="border-color: rgba(201, 168, 76, 0.3);">
+  <div class="flex items-center justify-between">
+    <div>
+      <span style="color: var(--accent-gold); font-weight: 500;">{{ stats.unenriched_count }} notes</span>
+      <span style="color: var(--text-muted); font-size: 0.875rem;"> pending enrichment</span>
+    </div>
+    <button class="btn btn-ghost"
+            hx-post="/api/enrichment/retry"
+            hx-swap="none"
+            hx-on::after-request="window.location.reload()">
+      Retry
+    </button>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

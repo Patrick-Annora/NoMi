@@ -1,0 +1,41 @@
+{% if results %}
+<div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px;">
+  {{ results|length }} results for "{{ query }}" ({{ mode }})
+</div>
+
+<div class="flex flex-col gap-3">
+  {% for note in results %}
+  <div class="note-card fade-in">
+    <div class="note-meta">
+      <span class="note-time">{{ note.relative_time or note.created_at }}</span>
+      <span class="note-id">{{ note.id[:8] }}</span>
+      {% if note.category %}
+      <span class="category-badge {{ note.category }}">{{ note.category }}</span>
+      {% endif %}
+      {% if note.similarity is defined %}
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--accent-gold);">
+        {{ "%.0f"|format(note.similarity * 100) }}%
+      </span>
+      {% endif %}
+    </div>
+    <a href="/notes/{{ note.id }}" style="text-decoration: none; color: inherit;">
+      <div class="note-text truncated">{{ note.raw_text }}</div>
+    </a>
+    {% if note.tags %}
+    <div class="note-footer">
+      {% for tag in note.tags %}
+      <a href="/?tag={{ tag.name if tag is mapping else tag }}" class="tag-pill">
+        {{ tag.name if tag is mapping else tag }}
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% elif query %}
+<div style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
+  <p>No results found for "{{ query }}"</p>
+  <p style="font-size: 0.85rem; margin-top: 4px;">Try a different query or search mode</p>
+</div>
+{% endif %}

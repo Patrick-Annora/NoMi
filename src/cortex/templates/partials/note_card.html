@@ -1,0 +1,27 @@
+<div class="note-card fade-in">
+  <div class="note-meta">
+    <span class="note-time">{{ note.relative_time or note.created_at }}</span>
+    <span class="note-id">{{ note.id[:8] }}</span>
+    {% if note.category %}
+    <span class="category-badge {{ note.category }}">{{ note.category }}</span>
+    {% endif %}
+    <span class="source-icon">{{ note.source }}</span>
+  </div>
+  <a href="/notes/{{ note.id }}" style="text-decoration: none; color: inherit;">
+    <div class="note-text {% if not expanded %}truncated{% endif %}">{{ note.raw_text }}</div>
+  </a>
+  {% if note.summary and expanded %}
+  <div style="margin-top: 8px; font-size: 0.85rem; color: var(--text-muted); font-style: italic;">
+    {{ note.summary }}
+  </div>
+  {% endif %}
+  {% if note.tags %}
+  <div class="note-footer">
+    {% for tag in note.tags %}
+    <a href="/?tag={{ tag.name if tag is mapping else tag }}" class="tag-pill">
+      {{ tag.name if tag is mapping else tag }}
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>

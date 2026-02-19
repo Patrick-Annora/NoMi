@@ -1,0 +1,16 @@
+<div class="agent-container fade-in">
+  <div class="agent-response">{{ response }}</div>
+  {% if citations %}
+  <div style="margin-top: 12px; font-size: 0.75rem; color: var(--text-muted);">
+    Sources:
+    {% for nid in citations %}
+    <a href="/notes/{{ nid }}" class="agent-citation">[{{ nid[:8] }}]</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if meta %}
+  <div style="margin-top: 8px; font-size: 0.7rem; color: var(--text-muted);">
+    Model: {{ meta.model_used }} | {{ meta.notes_searched }} notes searched
+  </div>
+  {% endif %}
+</div>

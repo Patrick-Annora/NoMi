@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Feed — Cortex{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <div class="flex justify-between items-center mb-4">
+    <div>
+      <h1 class="page-title">Feed</h1>
+      <p class="page-subtitle">Your stream of consciousness</p>
+    </div>
+    <a href="/compose" class="btn btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      New Note
+    </a>
+  </div>
+
+  <!-- Quick Filters -->
+  <div class="flex gap-2" style="flex-wrap: wrap; margin-bottom: 20px;">
+    <a href="/"
+       class="tag-pill {% if not active_category %}active{% endif %}"
+       style="{% if not active_category %}background: var(--accent-gold-dim); color: var(--accent-gold);{% endif %}">
+      all
+    </a>
+    {% for cat in categories %}
+    <a href="/?category={{ cat }}"
+       class="category-badge {{ cat }} {% if active_category == cat %}active{% endif %}">
+      {{ cat }}
+    </a>
+    {% endfor %}
+    {% if active_tag %}
+    <span class="tag-pill" style="background: var(--accent-gold-dim); color: var(--accent-gold);">
+      tag: {{ active_tag }}
+      <a href="/" style="color: var(--accent-gold); margin-left: 6px; text-decoration: none;">&times;</a>
+    </span>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Note Feed -->
+<div id="feed" class="flex flex-col gap-3">
+  {% for date_label, notes in grouped_notes.items() %}
+  <div class="date-sep">{{ date_label }}</div>
+  {% for note in notes %}
+  <div class="note-card fade-in">
+    <div class="note-meta">
+      <span class="note-time">{{ note.relative_time }}</span>
+      <span class="note-id">{{ note.id[:8] }}</span>
+      {% if note.category %}
+      <span class="category-badge {{ note.category }}">{{ note.category }}</span>
+      {% endif %}
+      <span class="source-icon">{{ note.source }}</span>
+    </div>
+    <a href="/notes/{{ note.id }}" style="text-decoration: none; color: inherit;">
+      <div class="note-text truncated">{{ note.raw_text }}</div>
+    </a>
+    {% if note.tags %}
+    <div class="note-footer">
+      {% for tag in note.tags %}
+      <a href="/?tag={{ tag.name if tag is mapping else tag }}" class="tag-pill">
+        {{ tag.name if tag is mapping else tag }}
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endfor %}
+
+  {% if not grouped_notes %}
+  <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto 16px; opacity: 0.3;">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+      <polyline points="14 2 14 8 20 8"></polyline>
+    </svg>
+    <p style="font-size: 1.125rem; margin-bottom: 8px;">No notes yet</p>
+    <p style="font-size: 0.875rem;">Capture your first thought with <code style="background: var(--bg-code); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">cortex add "your thought"</code></p>
+    <p style="font-size: 0.875rem; margin-top: 4px;">or <a href="/compose" style="color: var(--accent-gold);">compose one here</a></p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Infinite scroll trigger -->
+{% if grouped_notes %}
+<div hx-get="/partials/notes?page=2{% if active_category %}&category={{ active_category }}{% endif %}{% if active_tag %}&tag={{ active_tag }}{% endif %}"
+     hx-trigger="revealed"
+     hx-swap="afterend"
+     hx-target="this">
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Not Found — Cortex{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 80px 20px;">
+  <div style="font-size: 4rem; font-weight: 700; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">404</div>
+  <p style="color: var(--text-secondary); margin-top: 8px;">{{ message or "Page not found" }}</p>
+  <a href="/" class="btn btn-ghost" style="margin-top: 24px;">Back to Feed</a>
+</div>
+{% endblock %}

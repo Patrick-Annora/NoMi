@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Tags — Cortex{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="page-title">Tags</h1>
+  <p class="page-subtitle">Browse your knowledge by topic</p>
+</div>
+
+{% if all_tags %}
+<!-- Tag Cloud -->
+<div class="tag-cloud mb-6">
+  {% for tag in all_tags %}
+  {% set size_class = "" %}
+  {% if tag.usage_count > 20 %}{% set size_class = "xl" %}
+  {% elif tag.usage_count > 10 %}{% set size_class = "large" %}
+  {% endif %}
+  <a href="/?tag={{ tag.name }}" class="tag-pill {{ size_class }}">
+    {{ tag.name }}
+    <span style="margin-left: 6px; opacity: 0.5;">{{ tag.usage_count }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+<hr class="divider">
+
+<!-- Grouped Tags -->
+{% for group, tags in tag_groups.items() %}
+<div class="mb-6">
+  <h3 style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;">
+    {{ group }}
+  </h3>
+  <div class="tag-cloud">
+    {% for tag in tags %}
+    <a href="/?tag={{ tag.name }}" class="tag-pill">
+      {{ tag.name }}
+      <span style="margin-left: 6px; opacity: 0.5;">{{ tag.usage_count }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+
+{% else %}
+<div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto 16px; opacity: 0.3;">
+    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+    <line x1="7" y1="7" x2="7.01" y2="7"></line>
+  </svg>
+  <p style="font-size: 1.125rem; margin-bottom: 8px;">No tags yet</p>
+  <p style="font-size: 0.875rem;">Tags are automatically extracted when you add notes.</p>
+</div>
+{% endif %}
+{% endblock %}
