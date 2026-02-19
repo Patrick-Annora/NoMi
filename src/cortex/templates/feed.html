@@ -32,10 +32,10 @@
   </div>
 
   <!-- Quick Filters -->
-  <div class="flex gap-2" style="flex-wrap: wrap; margin-bottom: 20px;">
+  <div class="flex gap-2" style="flex-wrap: wrap; margin-bottom: 12px;">
     <a href="/"
-       class="tag-pill {% if not active_category %}active{% endif %}"
-       style="{% if not active_category %}background: var(--accent-gold-dim); color: var(--accent-gold);{% endif %}">
+       class="tag-pill {% if not active_category and not active_tag and not date_after %}active{% endif %}"
+       style="{% if not active_category and not active_tag and not date_after %}background: var(--accent-gold-dim); color: var(--accent-gold);{% endif %}">
       all
     </a>
     {% for cat in categories %}
@@ -50,6 +50,36 @@
       <a href="/" style="color: var(--accent-gold); margin-left: 6px; text-decoration: none;">&times;</a>
     </span>
     {% endif %}
+  </div>
+
+  <!-- Date Range Filter -->
+  <div class="flex gap-2 items-center mb-4" style="flex-wrap: wrap;">
+    <button class="btn btn-ghost" style="font-size: 0.75rem; padding: 4px 10px;" onclick="toggleDateFilter()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px;">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="16" y1="2" x2="16" y2="6"></line>
+        <line x1="8" y1="2" x2="8" y2="6"></line>
+        <line x1="3" y1="10" x2="21" y2="10"></line>
+      </svg>
+      Date range
+    </button>
+    {% if date_after or date_before %}
+    <span style="font-size: 0.75rem; color: var(--accent-gold); font-family: 'JetBrains Mono', monospace;">
+      {{ date_after or '...' }} — {{ date_before or 'now' }}
+    </span>
+    <a href="/?{% if active_category %}category={{ active_category }}{% endif %}{% if active_tag %}&tag={{ active_tag }}{% endif %}"
+       style="font-size: 0.7rem; color: var(--text-muted); text-decoration: none; margin-left: 4px;">&times; clear</a>
+    {% endif %}
+  </div>
+
+  <div id="date-filter-row" style="display: {% if date_after or date_before %}flex{% else %}none{% endif %}; gap: 8px; margin-bottom: 16px; align-items: center;">
+    <label style="font-size: 0.75rem; color: var(--text-muted);">From</label>
+    <input type="date" id="date-after" value="{{ date_after or '' }}"
+           style="background: var(--bg-code); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; color: var(--text-primary); font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;">
+    <label style="font-size: 0.75rem; color: var(--text-muted);">To</label>
+    <input type="date" id="date-before" value="{{ date_before or '' }}"
+           style="background: var(--bg-code); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; color: var(--text-primary); font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;">
+    <button class="btn btn-primary" style="font-size: 0.75rem; padding: 4px 12px;" onclick="applyDateFilter()">Apply</button>
   </div>
 </div>
 
@@ -97,12 +127,19 @@
 </div>
 
 <!-- Infinite scroll trigger -->
-{% if grouped_notes %}
-<div hx-get="/partials/notes?page=2{% if active_category %}&category={{ active_category }}{% endif %}{% if active_tag %}&tag={{ active_tag }}{% endif %}"
+{% if has_more %}
+<div id="scroll-trigger"
+     hx-get="/partials/notes?page=2{% if active_category %}&category={{ active_category }}{% endif %}{% if active_tag %}&tag={{ active_tag }}{% endif %}{% if date_after %}&date_after={{ date_after }}{% endif %}{% if date_before %}&date_before={{ date_before }}{% endif %}"
      hx-trigger="revealed"
      hx-swap="afterend"
      hx-target="this">
 </div>
+{% else %}
+{% if grouped_notes %}
+<div style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 0.8rem;">
+  You've reached the beginning.
+</div>
+{% endif %}
 {% endif %}
 {% endblock %}
 
@@ -120,6 +157,20 @@
       inlineText.value = '';
       inlineWordCount.textContent = '0 words';
     }
+  }
+
+  function toggleDateFilter() {
+    const row = document.getElementById('date-filter-row');
+    row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+  }
+
+  function applyDateFilter() {
+    const after = document.getElementById('date-after').value;
+    const before = document.getElementById('date-before').value;
+    const params = new URLSearchParams(window.location.search);
+    if (after) params.set('date_after', after); else params.delete('date_after');
+    if (before) params.set('date_before', before); else params.delete('date_before');
+    window.location.search = params.toString();
   }
 
   inlineText.addEventListener('input', () => {
@@ -153,7 +204,6 @@
 
       if (resp.ok) {
         const data = await resp.json();
-        // Build and insert new note card at the top of the feed
         const feed = document.getElementById('feed');
         const card = document.createElement('div');
         card.className = 'note-card fade-in';
@@ -168,13 +218,11 @@
           </a>
         `;
 
-        // Insert after the first date separator, or at the beginning
         const firstSep = feed.querySelector('.date-sep');
         if (firstSep) {
           firstSep.after(card);
         } else {
           feed.prepend(card);
-          // Add a Today separator
           const sep = document.createElement('div');
           sep.className = 'date-sep';
           sep.textContent = 'Today';

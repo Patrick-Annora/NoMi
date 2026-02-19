@@ -3,8 +3,56 @@
 
 {% block content %}
 <div class="mb-6">
-  <h1 class="page-title">Tags</h1>
-  <p class="page-subtitle">Browse your knowledge by topic</p>
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="page-title">Tags</h1>
+      <p class="page-subtitle">Browse your knowledge by topic</p>
+    </div>
+    {% if all_tags|length > 1 %}
+    <button class="btn btn-ghost" style="font-size: 0.8rem;" onclick="toggleMergeMode()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;">
+        <polyline points="15 3 21 3 21 9"></polyline>
+        <polyline points="9 21 3 21 3 15"></polyline>
+        <line x1="21" y1="3" x2="14" y2="10"></line>
+        <line x1="3" y1="21" x2="10" y2="14"></line>
+      </svg>
+      Merge Tags
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Merge Tool (hidden by default) -->
+<div id="merge-tool" style="display: none; margin-bottom: 24px;">
+  <div class="note-card" style="border-color: rgba(201, 168, 76, 0.3);">
+    <div style="font-size: 0.85rem; font-weight: 500; color: var(--accent-gold); margin-bottom: 12px;">Merge Duplicate Tags</div>
+    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 16px;">
+      Select a source tag to merge <strong>into</strong> a target tag. All notes with the source tag will be re-tagged with the target, and the source tag will be deleted.
+    </p>
+    <div class="flex gap-3 items-center" style="flex-wrap: wrap;">
+      <div>
+        <label style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px;">Source (will be removed)</label>
+        <select id="merge-source" style="background: var(--bg-code); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color: var(--text-primary); font-size: 0.85rem; min-width: 160px;">
+          <option value="">Select tag...</option>
+          {% for tag in all_tags %}
+          <option value="{{ tag.id }}">{{ tag.name }} ({{ tag.usage_count }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="color: var(--text-muted); font-size: 1.2rem; padding-top: 16px;">&rarr;</div>
+      <div>
+        <label style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px;">Target (will keep)</label>
+        <select id="merge-target" style="background: var(--bg-code); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color: var(--text-primary); font-size: 0.85rem; min-width: 160px;">
+          <option value="">Select tag...</option>
+          {% for tag in all_tags %}
+          <option value="{{ tag.id }}">{{ tag.name }} ({{ tag.usage_count }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-primary" style="margin-top: 16px; font-size: 0.8rem;" onclick="mergeTags()">Merge</button>
+    </div>
+    <div id="merge-status" style="margin-top: 8px; font-size: 0.8rem;"></div>
+  </div>
 </div>
 
 {% if all_tags %}
@@ -51,4 +99,46 @@
   <p style="font-size: 0.875rem;">Tags are automatically extracted when you add notes.</p>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function toggleMergeMode() {
+    const tool = document.getElementById('merge-tool');
+    tool.style.display = tool.style.display === 'none' ? 'block' : 'none';
+  }
+
+  async function mergeTags() {
+    const sourceId = document.getElementById('merge-source').value;
+    const targetId = document.getElementById('merge-target').value;
+    const status = document.getElementById('merge-status');
+
+    if (!sourceId || !targetId) {
+      status.innerHTML = '<span style="color: var(--accent-red);">Select both source and target tags.</span>';
+      return;
+    }
+    if (sourceId === targetId) {
+      status.innerHTML = '<span style="color: var(--accent-red);">Source and target must be different.</span>';
+      return;
+    }
+
+    try {
+      const resp = await fetch('/api/tags/' + sourceId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merge_into_id: parseInt(targetId) })
+      });
+
+      if (resp.ok) {
+        status.innerHTML = '<span style="color: var(--accent-sage);">Tags merged successfully. Reloading...</span>';
+        setTimeout(() => window.location.reload(), 800);
+      } else {
+        const data = await resp.json();
+        status.innerHTML = '<span style="color: var(--accent-red);">Error: ' + (data.detail || 'Merge failed') + '</span>';
+      }
+    } catch (err) {
+      status.innerHTML = '<span style="color: var(--accent-red);">Network error. Please try again.</span>';
+    }
+  }
+</script>
 {% endblock %}

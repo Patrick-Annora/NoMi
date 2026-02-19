@@ -27,22 +27,48 @@
   </div>
 </div>
 
-<!-- Category Distribution -->
+<!-- Category Distribution (Donut + Legend) -->
 {% if stats.by_category %}
 <div class="note-card mb-6">
-  <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 16px; color: var(--text-secondary);">Categories</h3>
-  {% for cat in stats.by_category %}
-  <div class="flex items-center gap-3 mb-2">
-    <span class="category-badge {{ cat.category }}">{{ cat.category }}</span>
-    <div style="flex: 1; background: var(--bg-code); border-radius: 4px; height: 8px; overflow: hidden;">
-      {% set pct = (cat.count / stats.total_notes * 100) if stats.total_notes > 0 else 0 %}
-      <div style="background: var(--accent-gold); height: 100%; width: {{ pct }}%; border-radius: 4px; transition: width 500ms ease;"></div>
+  <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 16px; color: var(--text-secondary);">Category Distribution</h3>
+  <div class="flex gap-6" style="align-items: center; flex-wrap: wrap;">
+    <div style="position: relative; width: 140px; height: 140px; flex-shrink: 0;">
+      <svg viewBox="0 0 36 36" style="width: 140px; height: 140px; transform: rotate(-90deg);">
+        {% set ns = namespace(offset=0) %}
+        {% set colors = {'business': '#c9a84c', 'personal': '#4a7c6a', 'idea': '#6a87be', 'journal': '#a782c3', 'meeting': '#bea06a', 'task': '#be6a6a', 'reference': '#829ba5', 'uncategorized': '#5c5855'} %}
+        {% for cat in stats.by_category %}
+        {% set pct = (cat.count / stats.total_notes * 100) if stats.total_notes > 0 else 0 %}
+        {% set dash = pct * 100 / 100 %}
+        <circle cx="18" cy="18" r="15.92" fill="none"
+                stroke="{{ colors.get(cat.category, '#5c5855') }}"
+                stroke-width="3.5"
+                stroke-dasharray="{{ dash }} {{ 100 - dash }}"
+                stroke-dashoffset="{{ -ns.offset }}"
+                style="transition: stroke-dasharray 500ms ease;"></circle>
+        {% set ns.offset = ns.offset + dash %}
+        {% endfor %}
+      </svg>
+      <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+        <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); font-family: 'JetBrains Mono', monospace;">{{ stats.total_notes }}</div>
+        <div style="font-size: 0.6rem; color: var(--text-muted);">total</div>
+      </div>
     </div>
-    <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-muted); min-width: 30px; text-align: right;">
-      {{ cat.count }}
-    </span>
+    <div class="flex flex-col gap-2" style="flex: 1;">
+      {% for cat in stats.by_category %}
+      <div class="flex items-center gap-3">
+        <span style="width: 10px; height: 10px; border-radius: 50%; background: {{ colors.get(cat.category, '#5c5855') }}; flex-shrink: 0;"></span>
+        <span class="category-badge {{ cat.category }}">{{ cat.category }}</span>
+        <div style="flex: 1; background: var(--bg-code); border-radius: 4px; height: 6px; overflow: hidden;">
+          {% set pct = (cat.count / stats.total_notes * 100) if stats.total_notes > 0 else 0 %}
+          <div style="background: {{ colors.get(cat.category, '#5c5855') }}; height: 100%; width: {{ pct }}%; border-radius: 4px; transition: width 500ms ease;"></div>
+        </div>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-muted); min-width: 30px; text-align: right;">
+          {{ cat.count }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
   </div>
-  {% endfor %}
 </div>
 {% endif %}
 
@@ -81,24 +107,59 @@
 <!-- Notes Per Day Chart -->
 {% if stats.notes_per_day %}
 <div class="note-card mb-6">
-  <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 16px; color: var(--text-secondary);">Notes Per Day (30 days)</h3>
-  <div style="display: flex; align-items: flex-end; gap: 3px; height: 120px; padding: 0 4px;">
-    {% set max_count = namespace(val=1) %}
-    {% for day in stats.notes_per_day %}
-      {% if day.count > max_count.val %}{% set max_count.val = day.count %}{% endif %}
-    {% endfor %}
-    {% for day in stats.notes_per_day %}
-    {% set height = (day.count / max_count.val * 100) if max_count.val > 0 else 0 %}
-    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;"
-         title="{{ day.day }}: {{ day.count }} notes">
-      <div style="width: 100%; background: var(--accent-gold); border-radius: 3px 3px 0 0; min-height: 3px; height: {{ height }}%; transition: height 500ms ease; max-width: 20px;"></div>
+  <div class="flex justify-between items-center mb-4">
+    <h3 style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);">Notes Over Time</h3>
+    <div class="mode-toggle" style="border-radius: 6px;">
+      <label class="active" onclick="showChart('day', this)" style="padding: 4px 12px; font-size: 0.7rem;">Day</label>
+      <label onclick="showChart('week', this)" style="padding: 4px 12px; font-size: 0.7rem;">Week</label>
     </div>
-    {% endfor %}
   </div>
-  <div style="display: flex; justify-content: space-between; margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-muted);">
-    {% if stats.notes_per_day %}
-    <span>{{ stats.notes_per_day[0].day }}</span>
-    <span>{{ stats.notes_per_day[-1].day }}</span>
+
+  <!-- Day Chart -->
+  <div id="chart-day">
+    <div style="display: flex; align-items: flex-end; gap: 3px; height: 120px; padding: 0 4px;">
+      {% set max_count = namespace(val=1) %}
+      {% for day in stats.notes_per_day %}
+        {% if day.count > max_count.val %}{% set max_count.val = day.count %}{% endif %}
+      {% endfor %}
+      {% for day in stats.notes_per_day %}
+      {% set height = (day.count / max_count.val * 100) if max_count.val > 0 else 0 %}
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;"
+           title="{{ day.day }}: {{ day.count }} notes">
+        <div style="width: 100%; background: var(--accent-gold); border-radius: 3px 3px 0 0; min-height: 3px; height: {{ height }}%; transition: height 500ms ease; max-width: 20px;"></div>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-muted);">
+      {% if stats.notes_per_day %}
+      <span>{{ stats.notes_per_day[0].day }}</span>
+      <span>{{ stats.notes_per_day[-1].day }}</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Week Chart -->
+  <div id="chart-week" style="display: none;">
+    {% if stats.notes_per_week %}
+    <div style="display: flex; align-items: flex-end; gap: 6px; height: 120px; padding: 0 4px;">
+      {% set max_wk = namespace(val=1) %}
+      {% for wk in stats.notes_per_week %}
+        {% if wk.count > max_wk.val %}{% set max_wk.val = wk.count %}{% endif %}
+      {% endfor %}
+      {% for wk in stats.notes_per_week %}
+      {% set height = (wk.count / max_wk.val * 100) if max_wk.val > 0 else 0 %}
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;"
+           title="{{ wk.week }}: {{ wk.count }} notes">
+        <div style="width: 100%; background: var(--accent-sage); border-radius: 3px 3px 0 0; min-height: 3px; height: {{ height }}%; transition: height 500ms ease; max-width: 40px;"></div>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-muted);">
+      <span>{{ stats.notes_per_week[0].week }}</span>
+      <span>{{ stats.notes_per_week[-1].week }}</span>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 40px; color: var(--text-muted); font-size: 0.85rem;">Not enough data for weekly view.</div>
     {% endif %}
   </div>
 </div>
@@ -121,4 +182,15 @@
   </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function showChart(view, el) {
+    document.getElementById('chart-day').style.display = view === 'day' ? 'block' : 'none';
+    document.getElementById('chart-week').style.display = view === 'week' ? 'block' : 'none';
+    document.querySelectorAll('.mode-toggle label').forEach(l => l.classList.remove('active'));
+    el.classList.add('active');
+  }
+</script>
 {% endblock %}

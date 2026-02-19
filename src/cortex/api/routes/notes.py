@@ -111,6 +111,25 @@ async def delete_note(note_id: str, request: Request) -> dict[str, str]:
     return {"status": "deleted"}
 
 
+@router.get("/{note_id}/enrichment")
+async def get_note_enrichment(note_id: str, request: Request) -> dict[str, Any]:
+    """Get the enrichment status and metadata of a note."""
+    conn = request.state.db
+    note = await async_get_note(conn, note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    tags = await async_get_note_tags(conn, note_id)
+    return {
+        "id": note_id,
+        "enriched": note.get("summary") is not None,
+        "summary": note.get("summary"),
+        "category": note.get("category"),
+        "sentiment": note.get("sentiment"),
+        "tags": [{"name": t["name"], "tag_group": t.get("tag_group")} for t in tags],
+    }
+
+
 @router.get("/{note_id}/related")
 async def related_notes(
     note_id: str,

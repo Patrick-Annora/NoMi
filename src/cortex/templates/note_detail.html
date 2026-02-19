@@ -60,6 +60,14 @@
             onclick="document.getElementById('edit-form').style.display = document.getElementById('edit-form').style.display === 'none' ? 'block' : 'none'">
       Edit
     </button>
+    <button class="btn btn-ghost" id="ask-btn" onclick="toggleAskPanel()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px;">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+      </svg>
+      Ask about this
+    </button>
     <button class="btn btn-danger"
             hx-delete="/api/notes/{{ note.id }}"
             hx-confirm="Delete this note permanently?"
@@ -82,6 +90,26 @@
         <button type="button" class="btn btn-ghost" onclick="document.getElementById('edit-form').style.display='none'">Cancel</button>
       </div>
     </form>
+  </div>
+
+  <!-- Ask About This Note Panel -->
+  <div id="ask-panel" style="display: none; margin-top: 16px;">
+    <div class="agent-container">
+      <div style="margin-bottom: 12px;">
+        <input type="text" id="ask-input" class="search-input"
+               placeholder="Ask a question about this note..."
+               style="font-size: 0.95rem; padding: 10px 16px;">
+      </div>
+      <div id="ask-thinking" style="display: none; color: var(--text-muted); font-size: 0.85rem;">
+        <span class="agent-spinner"></span> Thinking...
+      </div>
+      <div id="ask-response" class="agent-response"></div>
+      <div id="ask-citations" style="margin-top: 12px; display: none;">
+        <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 8px;">Related Notes</div>
+        <div id="ask-citation-links" class="flex gap-2" style="flex-wrap: wrap;"></div>
+      </div>
+      <div id="ask-meta" style="margin-top: 8px; font-size: 0.7rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;"></div>
+    </div>
   </div>
 </div>
 
@@ -110,4 +138,115 @@
   {% endfor %}
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<style>
+  .agent-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent-gold);
+    border-radius: 50%;
+    animation: aspin 600ms linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes aspin { to { transform: rotate(360deg); } }
+</style>
+<script>
+  let askAbort = null;
+
+  function toggleAskPanel() {
+    const panel = document.getElementById('ask-panel');
+    const isHidden = panel.style.display === 'none';
+    panel.style.display = isHidden ? 'block' : 'none';
+    if (isHidden) {
+      document.getElementById('ask-input').focus();
+    }
+  }
+
+  document.getElementById('ask-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && this.value.trim()) {
+      e.preventDefault();
+      runScopedAgent(this.value.trim());
+    }
+  });
+
+  function runScopedAgent(query) {
+    if (askAbort) askAbort.abort();
+    askAbort = new AbortController();
+
+    const responseEl = document.getElementById('ask-response');
+    const thinkingEl = document.getElementById('ask-thinking');
+    const citationsEl = document.getElementById('ask-citations');
+    const citationLinksEl = document.getElementById('ask-citation-links');
+    const metaEl = document.getElementById('ask-meta');
+
+    responseEl.textContent = '';
+    metaEl.textContent = '';
+    citationLinksEl.innerHTML = '';
+    citationsEl.style.display = 'none';
+    thinkingEl.style.display = 'block';
+
+    fetch('/api/search/agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: query, model: 'auto', note_id: '{{ note.id }}' }),
+      signal: askAbort.signal
+    }).then(response => {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let firstToken = true;
+
+      function processLines(text) {
+        const lines = text.split('\n');
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue;
+          const raw = line.slice(5).trim();
+          if (!raw || raw === '[DONE]') continue;
+          try {
+            const data = JSON.parse(raw);
+            if (data.text !== undefined) {
+              if (firstToken) { thinkingEl.style.display = 'none'; firstToken = false; }
+              responseEl.textContent += data.text;
+            }
+            if (data.note_ids) {
+              const filtered = data.note_ids.filter(id => id !== '{{ note.id }}');
+              if (filtered.length > 0) {
+                citationsEl.style.display = 'block';
+                citationLinksEl.innerHTML = filtered.map(id =>
+                  '<a href="/notes/' + id + '" class="agent-citation">[' + id.slice(0, 8) + ']</a>'
+                ).join(' ');
+              }
+            }
+            if (data.model_used !== undefined) {
+              metaEl.textContent = data.model_used + ' · ' + data.notes_searched + ' notes · ' + data.notes_cited + ' cited';
+              thinkingEl.style.display = 'none';
+            }
+          } catch(e) {}
+        }
+      }
+
+      function read() {
+        reader.read().then(({ done, value }) => {
+          if (done) { if (buffer) processLines(buffer); thinkingEl.style.display = 'none'; return; }
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop() || '';
+          for (const part of parts) processLines(part);
+          read();
+        }).catch(() => { thinkingEl.style.display = 'none'; });
+      }
+      read();
+    }).catch(err => {
+      if (err.name !== 'AbortError') {
+        thinkingEl.style.display = 'none';
+        responseEl.textContent = 'Error connecting to the agent.';
+      }
+    });
+  }
+</script>
 {% endblock %}

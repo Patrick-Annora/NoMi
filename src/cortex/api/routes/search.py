@@ -40,6 +40,7 @@ class AgentSearchRequest(BaseModel):
     category_filter: str | None = None
     tag_filter: str | None = None
     date_filter: dict[str, str] | None = None
+    note_id: str | None = None
 
 
 @router.post("/keyword")
@@ -107,6 +108,7 @@ async def search_agent(body: AgentSearchRequest, request: Request) -> EventSourc
             tag=body.tag_filter,
             date_after=date_after,
             date_before=date_before,
+            note_id=body.note_id,
         ):
             yield {
                 "event": event["event"],

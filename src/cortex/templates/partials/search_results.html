@@ -19,7 +19,7 @@
       {% endif %}
     </div>
     <a href="/notes/{{ note.id }}" style="text-decoration: none; color: inherit;">
-      <div class="note-text truncated">{{ note.raw_text }}</div>
+      <div class="note-text truncated search-highlight-target">{{ note.raw_text }}</div>
     </a>
     {% if note.tags %}
     <div class="note-footer">
@@ -33,6 +33,23 @@
   </div>
   {% endfor %}
 </div>
+
+<script>
+  // Highlight query terms in search results
+  (function() {
+    const query = {{ query|tojson }};
+    if (!query) return;
+    const words = query.trim().split(/\s+/).filter(w => w.length > 2);
+    if (words.length === 0) return;
+
+    const pattern = new RegExp('(' + words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+
+    document.querySelectorAll('.search-highlight-target').forEach(el => {
+      const text = el.textContent;
+      el.innerHTML = text.replace(pattern, '<mark style="background: rgba(201, 168, 76, 0.3); color: var(--text-primary); border-radius: 2px; padding: 0 2px;">$1</mark>');
+    });
+  })();
+</script>
 {% elif query %}
 <div style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
   <p>No results found for "{{ query }}"</p>

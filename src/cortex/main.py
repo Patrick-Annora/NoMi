@@ -1,5 +1,7 @@
 """FastAPI application factory with lifespan management."""
 
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
@@ -17,10 +19,42 @@ from cortex.api.routes.tags import router as tags_router
 from cortex.db.connection import get_async_connection
 from cortex.db.migrations import run_migrations
 
+logger = logging.getLogger(__name__)
+
+_enrichment_task: asyncio.Task[None] | None = None
+
+
+async def _enrichment_retry_loop() -> None:
+    """Background loop that retries unenriched notes every 60 seconds."""
+    while True:
+        await asyncio.sleep(60)
+        try:
+            from cortex.ai.enrichment import enrich_note
+            from cortex.db.connection import get_sync_connection
+            from cortex.db.queries.notes import get_unenriched_notes
+
+            conn = get_sync_connection()
+            try:
+                unenriched = get_unenriched_notes(conn, limit=10)
+            finally:
+                conn.close()
+
+            if unenriched:
+                logger.info(f"Retrying enrichment for {len(unenriched)} notes")
+                for note in unenriched:
+                    try:
+                        await enrich_note(note["id"], note["raw_text"])
+                    except Exception as e:
+                        logger.debug(f"Enrichment retry failed for {note['id']}: {e}")
+        except Exception as e:
+            logger.debug(f"Enrichment retry loop error: {e}")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan — setup and teardown."""
+    global _enrichment_task
+
     # Ensure database and schema exist
     run_migrations()
 
@@ -32,7 +66,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception:
         pass  # Model loading is best-effort at startup
 
+    # Start background enrichment retry loop
+    _enrichment_task = asyncio.create_task(_enrichment_retry_loop())
+
     yield
+
+    # Shutdown: cancel background tasks
+    if _enrichment_task:
+        _enrichment_task.cancel()
+        try:
+            await _enrichment_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(

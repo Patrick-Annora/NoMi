@@ -35,12 +35,26 @@
   </div>
 </form>
 
-<!-- Success Message -->
+<!-- Success Message + Enrichment Display -->
 <div id="save-result" style="display: none; margin-top: 20px;"></div>
 
 {% endblock %}
 
 {% block scripts %}
+<style>
+  .enrichment-spinner {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent-gold);
+    border-radius: 50%;
+    animation: espin 600ms linear infinite;
+    vertical-align: middle;
+    margin-right: 4px;
+  }
+  @keyframes espin { to { transform: rotate(360deg); } }
+</style>
 <script>
   const textarea = document.getElementById('note-text');
   const wordCount = document.getElementById('word-count');
@@ -68,6 +82,58 @@
     }
   });
 
+  function escapeHtml(text) {
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+  }
+
+  // Poll for enrichment data after save
+  function pollEnrichment(noteId, attempts) {
+    if (attempts >= 15) {
+      const el = document.getElementById('enrichment-status');
+      if (el) el.innerHTML = '<span style="font-size: 0.8rem; color: var(--text-muted);">Enrichment processing in background — check back later.</span>';
+      return;
+    }
+    fetch('/api/notes/' + noteId + '/enrichment')
+      .then(r => r.json())
+      .then(data => {
+        if (!data.enriched) {
+          setTimeout(() => pollEnrichment(noteId, attempts + 1), 2000);
+          return;
+        }
+        const el = document.getElementById('enrichment-status');
+        if (!el) return;
+
+        let html = '';
+        if (data.summary) {
+          html += '<div style="margin-bottom: 10px;">';
+          html += '<span style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">Summary</span>';
+          html += '<div style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 4px;">' + escapeHtml(data.summary) + '</div>';
+          html += '</div>';
+        }
+        html += '<div class="flex gap-2 mb-2" style="flex-wrap: wrap;">';
+        if (data.category) {
+          html += '<span class="category-badge ' + data.category + '">' + data.category + '</span>';
+        }
+        if (data.sentiment) {
+          html += '<span style="font-size: 0.7rem; color: var(--text-muted); padding: 2px 8px; border: 1px solid var(--border); border-radius: 9999px;">' + data.sentiment + '</span>';
+        }
+        html += '</div>';
+        if (data.tags && data.tags.length > 0) {
+          html += '<div class="flex gap-2" style="flex-wrap: wrap; margin-top: 8px;">';
+          data.tags.forEach(t => {
+            html += '<a href="/?tag=' + encodeURIComponent(t.name) + '" class="tag-pill">' + escapeHtml(t.name) + '</a>';
+          });
+          html += '</div>';
+        }
+        el.innerHTML = html;
+      })
+      .catch(() => {
+        setTimeout(() => pollEnrichment(noteId, attempts + 1), 2000);
+      });
+  }
+
   // Form submission
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -92,14 +158,16 @@
 
       saveResult.style.display = 'block';
       saveResult.innerHTML = `
-        <div class="note-card fade-in" style="border-color: var(--accent-sage);">
+        <div class="note-card fade-in" style="border-color: rgba(201, 168, 76, 0.3);">
           <div style="color: var(--accent-sage); font-size: 0.85rem; margin-bottom: 8px; font-weight: 500;">
             Note saved
           </div>
-          <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;">
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px;">
             ${data.id ? data.id.slice(0, 8) : ''} &middot; ${data.word_count || 0} words
           </div>
-          <p style="color: var(--text-secondary); font-size: 0.9rem;">Enrichment processing in background...</p>
+          <div id="enrichment-status" style="padding-top: 8px; border-top: 1px solid var(--border);">
+            <span style="font-size: 0.8rem; color: var(--text-muted);"><span class="enrichment-spinner"></span> Extracting metadata...</span>
+          </div>
           <div class="flex gap-2 mt-4">
             <a href="/notes/${data.id}" class="btn btn-ghost" style="font-size: 0.8rem;">View Note</a>
             <button class="btn btn-ghost" style="font-size: 0.8rem;" onclick="resetForm()">New Note</button>
@@ -107,11 +175,14 @@
         </div>
       `;
 
+      if (data.id) pollEnrichment(data.id, 0);
+
       textarea.value = '';
+      textarea.style.height = '250px';
       wordCount.textContent = '0 words';
     } catch (err) {
       saveResult.style.display = 'block';
-      saveResult.innerHTML = `<div style="color: var(--accent-red);">Error saving note. Please try again.</div>`;
+      saveResult.innerHTML = '<div style="color: var(--accent-red);">Error saving note. Please try again.</div>';
     } finally {
       saveBtn.disabled = false;
       saveBtn.textContent = 'Save Note';

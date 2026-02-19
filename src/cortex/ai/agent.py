@@ -53,6 +53,7 @@ async def agent_search(
     tag: str | None = None,
     date_after: str | None = None,
     date_before: str | None = None,
+    note_id: str | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Run the full agent search pipeline with streaming.
 
@@ -69,32 +70,46 @@ async def agent_search(
         tag: Optional tag filter.
         date_after: Optional date lower bound.
         date_before: Optional date upper bound.
+        note_id: Optional note ID to scope the search to a single note and its related notes.
 
     Yields:
         SSE event dictionaries.
     """
-    # Step 1: Retrieve relevant notes via semantic + keyword search
-    query_embedding = encode_text(query)
-    semantic_results = await semantic_search(
-        conn, query_embedding, limit=10,
-        category=category, tag=tag,
-        date_after=date_after, date_before=date_before,
-    )
-
-    try:
-        keyword_results = await keyword_search(conn, query, limit=5)
-    except Exception:
-        keyword_results = []
-
-    # Merge and deduplicate
-    seen_ids: set[str] = set()
     context_notes: list[dict[str, Any]] = []
-    for note in semantic_results + keyword_results:
-        if note["id"] not in seen_ids:
-            seen_ids.add(note["id"])
-            context_notes.append(note)
 
-    context_notes = context_notes[:15]  # Cap at 15 notes for context
+    if note_id:
+        # Scoped search: use the specific note + related notes as context
+        from cortex.db.queries.notes import async_get_note
+        from cortex.db.queries.search import get_related_notes
+
+        note = await async_get_note(conn, note_id)
+        if note:
+            context_notes.append(note)
+            related = await get_related_notes(conn, note_id, limit=5)
+            for r in related:
+                context_notes.append(r)
+    else:
+        # Full search: semantic + keyword retrieval
+        query_embedding = encode_text(query)
+        semantic_results = await semantic_search(
+            conn, query_embedding, limit=10,
+            category=category, tag=tag,
+            date_after=date_after, date_before=date_before,
+        )
+
+        try:
+            keyword_results = await keyword_search(conn, query, limit=5)
+        except Exception:
+            keyword_results = []
+
+        # Merge and deduplicate
+        seen_ids: set[str] = set()
+        for note in semantic_results + keyword_results:
+            if note["id"] not in seen_ids:
+                seen_ids.add(note["id"])
+                context_notes.append(note)
+
+        context_notes = context_notes[:15]  # Cap at 15 notes for context
 
     if not context_notes:
         yield {

@@ -24,9 +24,13 @@
 {% endfor %}
 
 {% if next_page %}
-<div hx-get="/partials/notes?page={{ next_page }}{% if category %}&category={{ category }}{% endif %}{% if tag %}&tag={{ tag }}{% endif %}"
+<div hx-get="/partials/notes?page={{ next_page }}{% if category %}&category={{ category }}{% endif %}{% if tag %}&tag={{ tag }}{% endif %}{% if date_after %}&date_after={{ date_after }}{% endif %}{% if date_before %}&date_before={{ date_before }}{% endif %}"
      hx-trigger="revealed"
      hx-swap="afterend"
      hx-target="this">
+</div>
+{% elif notes %}
+<div style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 0.8rem;">
+  You've reached the beginning.
 </div>
 {% endif %}

@@ -82,10 +82,19 @@ async def feed_page(
     request: Request,
     category: str | None = None,
     tag: str | None = None,
+    date_after: str | None = None,
+    date_before: str | None = None,
 ) -> HTMLResponse:
     """Render the home feed page."""
     conn = request.state.db
-    notes = await async_list_notes(conn, limit=30, category=category, tag=tag)
+    page_limit = 30
+    notes = await async_list_notes(
+        conn, limit=page_limit + 1, category=category, tag=tag,
+        date_after=date_after, date_before=date_before,
+    )
+
+    has_more = len(notes) > page_limit
+    notes = notes[:page_limit]
 
     # Group by date
     grouped: dict[str, list[dict[str, Any]]] = {}
@@ -105,6 +114,9 @@ async def feed_page(
         "categories": all_categories,
         "active_category": category,
         "active_tag": tag,
+        "date_after": date_after,
+        "date_before": date_before,
+        "has_more": has_more,
     })
 
 
@@ -242,12 +254,15 @@ async def partial_notes(
     limit: int = 20,
     category: str | None = None,
     tag: str | None = None,
+    date_after: str | None = None,
+    date_before: str | None = None,
 ) -> HTMLResponse:
     """Render a note list fragment for infinite scroll."""
     conn = request.state.db
     offset = (page - 1) * limit
     notes = await async_list_notes(
-        conn, limit=limit, offset=offset, category=category, tag=tag
+        conn, limit=limit, offset=offset, category=category, tag=tag,
+        date_after=date_after, date_before=date_before,
     )
 
     for note in notes:
@@ -259,6 +274,8 @@ async def partial_notes(
         "next_page": page + 1 if len(notes) == limit else None,
         "category": category,
         "tag": tag,
+        "date_after": date_after,
+        "date_before": date_before,
     })
 
 

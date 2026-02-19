@@ -84,14 +84,77 @@
 
 ## Phase 4: Polish (Complete)
 
-### Step 11-14: Collections, Stats, CLI Search, Hardening
-- Collections API (create, list, add/remove notes)
-- Stats dashboard with charts
-- CLI search with --keyword, --agent, --model flags
+### Step 11: Collections
+- Collections API (create, list, add/remove notes, delete)
+- Collections web UI: list page, detail page, sidebar nav link
+- Full CRUD via web interface
+
+### Step 12: Stats Dashboard
+- Notes per day bar chart (30 days)
+- Notes per week bar chart (12 weeks) with day/week toggle
+- SVG donut chart for category distribution with color-coded legend
+- Capture source breakdown (CLI vs web)
+- Total notes, words, tags, DB size
+- Enrichment status with retry button
+
+### Step 13: CLI Search
+- `cortex search "query"` — semantic search in terminal
+- `cortex search "query" --agent` — agent search
+- `cortex search "query" --keyword` — FTS5 search
+
+### Step 14: Hardening
+- Error handling on all routes
 - Input validation via Pydantic models
+- DB backup command
+- Export command (JSON/CSV)
 - Graceful degradation when Ollama is unavailable
-- Database backup and export commands
-- Comprehensive test suite
+- Comprehensive test suite (28 tests)
+
+## Phase 4.5: Gap Fixes (Complete)
+
+### Background Enrichment Retry
+- asyncio background task retries unenriched notes every 60 seconds
+- Runs in app lifespan, cleans up on shutdown
+- Processes up to 10 notes per cycle with per-note error isolation
+
+### Compose Metadata Display
+- After saving a note, polls `/api/notes/{id}/enrichment` every 2 seconds
+- Displays summary, category badge, sentiment, and tag pills when ready
+- 30-second timeout with graceful fallback message
+
+### "Ask About This" Feature
+- Agent panel on note detail page with scoped search
+- Sends `note_id` to agent API, which uses the note + related notes as context
+- Same SSE streaming UX as global agent search
+
+### Feed Date Range Filter
+- Date picker inputs (from/to) in the feed filter bar
+- Integrates with existing category and tag filters
+- Filter params passed through to infinite scroll pagination
+
+### Tag Merge UI
+- Merge tool panel on tags page with source/target dropdowns
+- Calls existing `PATCH /api/tags/{id}` merge endpoint
+- Page reloads after successful merge
+
+### Stats Charts Upgrade
+- SVG donut chart for category distribution (no external libraries)
+- Color-coded legend matching category badge colors
+- Day/Week toggle for notes-over-time chart
+- Week chart uses 12-week lookback with sage accent color
+
+### Search Result Highlighting
+- Query terms highlighted in search results with gold background
+- Client-side highlighting via regex match on result text
+- Filters out short words (< 3 chars) to avoid noise
+
+### Infrastructure Fixes
+- Fixed max content width to 720px (removed sidebar math from main-content)
+- Infinite scroll pagination now shows "You've reached the beginning" at end
+- `has_more` flag prevents empty scroll triggers
+- Date filter params propagated through scroll pagination
+- Dockerfile + .dockerignore for optional containerized deployment
+- KERNEL.md added to repo and symlinked to docs/
 
 ## Decisions Made
 - Used hatchling as build backend (modern, fast)
@@ -99,9 +162,13 @@
 - HTMX stub for offline development (replace with real htmx.min.js in production)
 - All templates use Jinja2 inheritance pattern
 - SSE via sse-starlette for agent streaming
+- SVG-based donut chart instead of Chart.js (zero external JS dependencies)
+- Background enrichment via asyncio task instead of APScheduler (simpler, no extra dependency)
+- Enrichment polling in compose uses 2-second intervals (balance between responsiveness and overhead)
 
 ## Known Limitations
 - HTMX stub needs to be replaced with production htmx.min.js
 - Tailwind standalone CLI needed for full CSS rebuild
 - sentence-transformers model download required on first run
 - Ollama must be installed separately
+- Date range filter uses native browser date pickers (styling varies by browser)
