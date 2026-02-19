@@ -88,7 +88,7 @@
   {% for date_label, notes in grouped_notes.items() %}
   <div class="date-sep">{{ date_label }}</div>
   {% for note in notes %}
-  <div class="note-card fade-in">
+  <div class="note-card fade-in" style="position: relative;">
     <div class="note-meta">
       <span class="note-time">{{ note.relative_time }}</span>
       <span class="note-id">{{ note.id[:8] }}</span>
@@ -96,6 +96,15 @@
       <span class="category-badge {{ note.category }}">{{ note.category }}</span>
       {% endif %}
       <span class="source-icon">{{ note.source }}</span>
+      <button class="note-menu-btn" onclick="event.stopPropagation(); toggleNoteMenu(this, '{{ note.id }}');" title="More actions">&#8943;</button>
+      <div class="note-ctx-menu" data-note-id="{{ note.id }}">
+        <a href="/notes/{{ note.id }}">View note</a>
+        <div class="menu-divider"></div>
+        <span class="menu-label">Add to collection</span>
+        <div class="ctx-collection-list" data-note-id="{{ note.id }}">
+          <span class="menu-label" style="font-style: italic;">Loading...</span>
+        </div>
+      </div>
     </div>
     <a href="/notes/{{ note.id }}" style="text-decoration: none; color: inherit;">
       <div class="note-text truncated">{{ note.raw_text }}</div>

@@ -215,6 +215,9 @@
     .category-badge.task { background: rgba(190, 106, 106, 0.2); color: #be6a6a; }
     .category-badge.reference { background: rgba(130, 155, 165, 0.2); color: #829ba5; }
 
+    .category-badge { transition: all var(--transition); }
+    .category-badge:hover { filter: brightness(1.15); }
+
     /* Source Icon */
     .source-icon {
       font-family: 'JetBrains Mono', monospace;
@@ -239,7 +242,7 @@
       transition: border-color var(--transition);
     }
 
-    .search-input:focus { border-color: var(--accent-gold); }
+    .search-input:focus { border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.1); }
     .search-input::placeholder { color: var(--text-muted); }
 
     /* Buttons */
@@ -282,6 +285,19 @@
 
     .btn-danger:hover { background: rgba(184, 84, 80, 0.25); }
 
+    .btn:focus-visible {
+      outline: 2px solid var(--accent-gold);
+      outline-offset: 2px;
+    }
+
+    a:focus-visible {
+      outline: 2px solid var(--accent-gold);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    .btn:active { transform: scale(0.97); }
+
     /* Date separator */
     .date-sep {
       font-size: 0.8rem;
@@ -310,7 +326,7 @@
       transition: border-color var(--transition);
     }
 
-    .compose-textarea:focus { border-color: var(--accent-gold); }
+    .compose-textarea:focus { border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.1); }
     .compose-textarea::placeholder { color: var(--text-muted); }
 
     /* Mode Toggle */
@@ -373,6 +389,12 @@
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 20px;
+      transition: all var(--transition);
+    }
+
+    .stat-card:hover {
+      border-color: var(--border-light);
+      transform: translateY(-1px);
     }
 
     .stat-value {
@@ -492,6 +514,69 @@
     .htmx-indicator { display: none; }
     .htmx-request .htmx-indicator { display: inline-block; }
     .htmx-request.htmx-indicator { display: inline-block; }
+
+    /* Note context menu */
+    .note-menu-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 1rem;
+      line-height: 1;
+      opacity: 0;
+      transition: opacity var(--transition), background var(--transition);
+      margin-left: auto;
+    }
+    .note-card:hover .note-menu-btn { opacity: 1; }
+    .note-menu-btn:hover { background: var(--bg-elevated); color: var(--text-secondary); }
+
+    .note-ctx-menu {
+      position: absolute;
+      right: 12px;
+      top: 36px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      padding: 4px;
+      min-width: 180px;
+      z-index: 100;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      display: none;
+    }
+    .note-ctx-menu.open { display: block; }
+    .note-ctx-menu button, .note-ctx-menu a {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      border-radius: 4px;
+      text-decoration: none;
+      font-family: 'Inter', sans-serif;
+    }
+    .note-ctx-menu button:hover, .note-ctx-menu a:hover {
+      background: var(--accent-gold-dim);
+      color: var(--text-primary);
+    }
+    .note-ctx-menu .menu-divider {
+      border-top: 1px solid var(--border);
+      margin: 4px 0;
+    }
+    .note-ctx-menu .menu-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      padding: 6px 12px 2px;
+      cursor: default;
+    }
+    .note-ctx-menu .menu-label:hover { background: none; color: var(--text-muted); }
   </style>
 
   <script src="/static/js/htmx.min.js"></script>
@@ -549,6 +634,13 @@
           Stats
         </a>
       </nav>
+      <div style="padding: 16px 24px; border-top: 1px solid var(--border); margin-top: auto;">
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-muted); line-height: 1.8;">
+          <span style="opacity: 0.6;">Shortcuts</span><br>
+          <kbd style="background: var(--bg-code); padding: 1px 4px; border-radius: 3px; border: 1px solid var(--border);">&#8984;K</kbd> Search
+          <kbd style="background: var(--bg-code); padding: 1px 4px; border-radius: 3px; border: 1px solid var(--border); margin-left: 4px;">&#8984;N</kbd> New
+        </div>
+      </div>
     </aside>
 
     <!-- Main Content -->
@@ -573,11 +665,142 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
       Search
     </a>
-    <a href="/tags" class="{% if request.url.path == '/tags' %}active{% endif %}">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path></svg>
-      Tags
+    <a href="/collections" class="{% if '/collections' in request.url.path %}active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"></rect><line x1="8" y1="3" x2="8" y2="21"></line></svg>
+      Lists
+    </a>
+    <a href="/stats" class="{% if request.url.path == '/stats' %}active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+      Stats
     </a>
   </nav>
+
+  <!-- Note context menu handler -->
+  <script>
+    // Global collections cache
+    var __collections = null;
+
+    function toggleNoteMenu(btn, noteId) {
+      // Close any other open menus
+      document.querySelectorAll('.note-ctx-menu.open').forEach(function(m) {
+        if (m.dataset.noteId !== noteId) m.classList.remove('open');
+      });
+
+      var menu = btn.parentElement.querySelector('.note-ctx-menu');
+      if (!menu) return;
+      var isOpen = menu.classList.contains('open');
+      menu.classList.toggle('open');
+
+      if (!isOpen && !__collections) {
+        // Fetch collections on first open
+        fetch('/api/collections')
+          .then(function(r) { return r.json(); })
+          .then(function(cols) {
+            __collections = cols;
+            populateCollectionMenus();
+          }).catch(function() {});
+      } else if (!isOpen && __collections) {
+        populateCollectionMenus();
+      }
+    }
+
+    function populateCollectionMenus() {
+      document.querySelectorAll('.ctx-collection-list').forEach(function(list) {
+        if (list.dataset.loaded) return;
+        list.dataset.loaded = '1';
+        if (!__collections || __collections.length === 0) {
+          list.innerHTML = '<span class="menu-label" style="font-style: italic;">No collections yet</span>';
+          return;
+        }
+        var html = '';
+        __collections.forEach(function(col) {
+          html += '<button onclick="addToCollection(\'' + list.dataset.noteId + '\', ' + col.id + ', this)">' + col.name + '</button>';
+        });
+        list.innerHTML = html;
+      });
+    }
+
+    function addToCollection(noteId, collectionId, btn) {
+      fetch('/api/collections/' + collectionId + '/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note_id: noteId })
+      }).then(function() {
+        btn.style.color = 'var(--accent-sage)';
+        btn.textContent += ' \u2713';
+        setTimeout(function() {
+          var menu = btn.closest('.note-ctx-menu');
+          if (menu) menu.classList.remove('open');
+        }, 600);
+      }).catch(function() {
+        btn.style.color = 'var(--accent-red)';
+      });
+    }
+
+    // Close menus on outside click
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.note-menu-btn') && !e.target.closest('.note-ctx-menu')) {
+        document.querySelectorAll('.note-ctx-menu.open').forEach(function(m) { m.classList.remove('open'); });
+      }
+    });
+  </script>
+
+  <!-- Global Keyboard Shortcuts -->
+  <script>
+    document.addEventListener('keydown', function(e) {
+      // Don't fire shortcuts if typing in an input/textarea
+      var tag = document.activeElement.tagName;
+      var isInput = (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT');
+
+      // Cmd/Ctrl+K → Search
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        window.location.href = '/search';
+        return;
+      }
+
+      // Cmd/Ctrl+N → New Note (compose)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+        // Only if not already on compose page and not in a text field
+        if (window.location.pathname !== '/compose') {
+          e.preventDefault();
+          window.location.href = '/compose';
+          return;
+        }
+      }
+
+      // Escape → close any open panel/modal
+      if (e.key === 'Escape') {
+        // Close inline compose if open
+        var ic = document.getElementById('inline-compose');
+        if (ic && ic.style.display !== 'none') { ic.style.display = 'none'; return; }
+        // Close ask panel if open
+        var ap = document.getElementById('ask-panel');
+        if (ap && ap.style.display !== 'none') { ap.style.display = 'none'; return; }
+        // Close merge tool if open
+        var mt = document.getElementById('merge-tool');
+        if (mt && mt.style.display !== 'none') { mt.style.display = 'none'; return; }
+        // Close edit form if open
+        var ef = document.getElementById('edit-form');
+        if (ef && ef.style.display !== 'none') { ef.style.display = 'none'; return; }
+        // Close date filter if open
+        var df = document.getElementById('date-filter-row');
+        if (df && df.style.display !== 'none') { df.style.display = 'none'; return; }
+      }
+
+      // '/' to focus search (only if not already in input)
+      if (e.key === '/' && !isInput) {
+        var searchInput = document.getElementById('search-input');
+        if (searchInput) {
+          e.preventDefault();
+          searchInput.focus();
+        } else {
+          e.preventDefault();
+          window.location.href = '/search';
+        }
+      }
+    });
+  </script>
 
   {% block scripts %}{% endblock %}
 </body>

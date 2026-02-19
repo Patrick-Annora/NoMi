@@ -173,8 +173,15 @@ async def tags_page(request: Request) -> HTMLResponse:
 @router.get("/compose", response_class=HTMLResponse)
 async def compose_page(request: Request) -> HTMLResponse:
     """Render the compose page."""
+    conn = request.state.db
+    collection_rows = await conn.execute_fetchall(
+        "SELECT id, name FROM collections ORDER BY name"
+    )
+    collections = [dict(r) for r in collection_rows]
+
     return templates.TemplateResponse("compose.html", {
         "request": request,
+        "collections": collections,
     })
 
 

@@ -36,7 +36,36 @@
 </div>
 
 <!-- Results -->
-<div id="results"></div>
+<div id="results">
+  <!-- Initial state guidance -->
+  <div id="search-hints" class="fade-in" style="padding: 40px 0;">
+    <div style="text-align: center; margin-bottom: 32px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" style="width: 40px; height: 40px; margin: 0 auto 12px; opacity: 0.4;">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">Type a query to search your notes</p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+      <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px;">
+        <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-gold); margin-bottom: 8px; font-weight: 600;">Semantic</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">Finds notes by meaning, even if exact words don't match. Best for conceptual queries.</p>
+        <p style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text-muted); margin-top: 10px; font-style: italic;">"ideas about productivity"</p>
+      </div>
+      <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px;">
+        <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-sage); margin-bottom: 8px; font-weight: 600;">Keyword</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">Full-text search matching exact words and phrases. Best for specific terms.</p>
+        <p style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text-muted); margin-top: 10px; font-style: italic;">"meeting with Sarah"</p>
+      </div>
+      <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px;">
+        <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #a782c3; margin-bottom: 8px; font-weight: 600;">Agent</div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">AI reads your notes and synthesizes an answer. Best for questions.</p>
+        <p style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text-muted); margin-top: 10px; font-style: italic;">"what did I decide about X?"</p>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Agent Chat Container (shown in agent mode) -->
 <div id="agent-container" style="display: none;" class="agent-container">
@@ -71,6 +100,13 @@
 <script>
   let currentMode = 'semantic';
   let agentAbort = null;
+
+  // Hide hints when user starts typing
+  document.getElementById('search-input').addEventListener('input', function() {
+    var hints = document.getElementById('search-hints');
+    if (hints && this.value.trim()) hints.style.display = 'none';
+    if (hints && !this.value.trim()) hints.style.display = 'block';
+  });
 
   function setMode(el, mode) {
     currentMode = mode;

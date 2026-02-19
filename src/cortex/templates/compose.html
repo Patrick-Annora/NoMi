@@ -15,16 +15,28 @@
             autofocus
             style="min-height: 250px;"></textarea>
 
-  <div class="flex items-center justify-between mt-4">
-    <div class="flex items-center gap-3">
+  <!-- Options Row -->
+  <div class="flex items-center justify-between mt-4" style="flex-wrap: wrap; gap: 12px;">
+    <div class="flex items-center gap-4" style="flex-wrap: wrap;">
       <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
         <input type="checkbox" name="is_journal" id="is-journal"
                style="accent-color: var(--accent-gold); width: 16px; height: 16px;">
         Journal mode
       </label>
+
+      {% if collections %}
+      <select id="collection-picker"
+              style="background: var(--bg-code); color: var(--text-secondary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 10px; font-size: 0.8rem; font-family: 'Inter', sans-serif; outline: none; cursor: pointer;">
+        <option value="">No collection</option>
+        {% for col in collections %}
+        <option value="{{ col.id }}">{{ col.name }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
     </div>
 
-    <div class="flex gap-2">
+    <div class="flex items-center gap-2">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--text-muted); padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px;">web</span>
       <span id="word-count" style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-muted); padding: 8px;">
         0 words
       </span>
@@ -32,6 +44,9 @@
         Save Note
       </button>
     </div>
+  </div>
+  <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--text-muted); margin-top: 8px; opacity: 0.6;">
+    <kbd style="background: var(--bg-code); padding: 1px 4px; border-radius: 3px; border: 1px solid var(--border);">&#8984;Enter</kbd> to save
   </div>
 </form>
 
@@ -144,14 +159,18 @@
     saveBtn.textContent = 'Saving...';
 
     try {
+      const payload = {
+        raw_text: text,
+        source: 'web',
+        is_journal: document.getElementById('is-journal').checked
+      };
+      const colPicker = document.getElementById('collection-picker');
+      const collectionId = colPicker ? colPicker.value : '';
+
       const response = await fetch('/api/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          raw_text: text,
-          source: 'web',
-          is_journal: document.getElementById('is-journal').checked
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();
@@ -175,7 +194,17 @@
         </div>
       `;
 
-      if (data.id) pollEnrichment(data.id, 0);
+      if (data.id) {
+        pollEnrichment(data.id, 0);
+        // Add to collection if selected
+        if (collectionId) {
+          fetch('/api/collections/' + collectionId + '/notes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note_id: data.id })
+          }).catch(() => {});
+        }
+      }
 
       textarea.value = '';
       textarea.style.height = '250px';
